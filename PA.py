@@ -4,14 +4,33 @@ from nltk.corpus import stopwords
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_curve, confusion_matrix
 import matplotlib.pyplot as plt
-import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
+import seaborn as sns
+from sklearn.metrics import auc
+from sklearn.preprocessing import label_binarize
+import sys
+
+args = sys.argv[1:]
+if len(args) != 1 or (int(args[0])< 20 or int(args[0]) > 80):
+    TRAIN_SIZE = 80/100
+    a=80
+     
+else:
+    TRAIN_SIZE = (int(args[0])/100)
+    a = int(args[0])
+
+
+print("Mistry, DevPrashant, A20561645")
+print("Training Size: ", a)
+
+
 
 data = pd.read_csv('data.csv')
-
 stop = stopwords.words('english')
 x = data.description
 y = data.points
+
+
 
 corpus = []
 IGNORE = False
@@ -28,7 +47,9 @@ for i in range(len(x)):
         corpus.append(review)    
 
 
+
 df = pd.DataFrame({"Description": corpus, "Points":y})
+
 
 bins = [80, 84, 90, 94, 100]
 labels = [1, 2, 3, 4]
@@ -36,15 +57,8 @@ labels = [1, 2, 3, 4]
 
 df['Points_Class'] = pd.cut(df['Points'], bins=bins, labels=labels, include_lowest=True)
 
-p1=len(df[df['Points_Class'] == 1])/len(df)
-p2=len(df[df['Points_Class'] == 2])/len(df)
-p3=len(df[df['Points_Class'] == 3])/len(df)
-p4=len(df[df['Points_Class'] == 4])/len(df)
 
-print(p1)
-print(p2)
-print(p3)
-print(p4)
+
 
 def create_binary_bag_of_words(documents):
     vocabulary = set()
@@ -69,21 +83,24 @@ def create_binary_bag_of_words(documents):
 
     return binary_bow, list(vocabulary)
 
+
+
 df2 = pd.DataFrame({"Text": corpus, "Points":df["Points_Class"]})
-X_train, X_test, y_train, y_test = train_test_split(df2["Text"], df2["Points"], test_size=0.2, random_state=20454593)
+
+print("Training Classifier")
+
+X_train, X_test, y_train, y_test = train_test_split(df2["Text"], df2["Points"], test_size=1-TRAIN_SIZE, random_state=651694207)
 
 binary_bag_train, vocabulary_train = create_binary_bag_of_words(X_train)
 X_train = binary_bag_train
+
 
 one = np.count_nonzero(y_train == 1) / len(y_train)
 two = np.count_nonzero(y_train == 2) / len(y_train)
 three = np.count_nonzero(y_train == 3) / len(y_train)
 four = np.count_nonzero(y_train == 4) / len(y_train)
 
-print(one, two, three, four)
 
-V_size = len(vocabulary_train)
-V_size
 
 total_one_words = 0
 total_two_words = 0
@@ -105,10 +122,8 @@ for i in range(len(X_train)):
         for number in X_train[i]:
             total_four_words += number
 
-print(total_one_words)
-print(total_two_words)
-print(total_three_words)
-print(total_four_words)
+
+V_size = len(vocabulary_train)
 
 one_prob = {}
 two_prob = {}
@@ -181,6 +196,9 @@ for i in range(len(X_train)):
                 if vocabulary_train[j] not in three_prob:
                     three_prob[vocabulary_train[j]] = 1/(total_three_words+(1*V_size))
 
+
+print("Testing Classifier")
+
 test_df = pd.DataFrame({"Text": X_test, "Points":y_test}).reset_index()
 predictions = []
 for row in test_df['Text']:
@@ -208,6 +226,8 @@ for row in test_df['Text']:
     elif max(one_x, two_x, three_x, four_x) == four_x:
         predictions.append(4)
 
+
+
 def create_metrics(actual, predicted):
     TP = 0
     TN = 0
@@ -233,6 +253,8 @@ def create_metrics(actual, predicted):
 
     return TP, TN, FP, FN, recall, specificity, precision, negative_predictive_value, accuracy, F_score
 
+
+
 def predict(sentence):
     onex = np.log(one)
     twox = np.log(two)
@@ -247,9 +269,11 @@ def predict(sentence):
             fourx += np.log(four_prob[word])
     return onex, twox ,threex, fourx
 
+
 TP, TN, FP, FN, recall, specificity, precision, negative_predictive_value, accuracy, F_score = create_metrics(test_df['Points'], predictions)
 
 
+print("Test Results/Metrics")
 print(f'Number of true positives: {TP}')
 print(f'Number of true negatives: {TN}')
 print(f'Number of false positives: {FP}')
@@ -261,24 +285,78 @@ print(f'Negative predictive value: {negative_predictive_value}')
 print(f'Accuracy: {accuracy}')
 print(f'F-score: {F_score}')
 
-S = input('Enter your sentence: ')
-print(f'Sentence S: \n{S}')
+
+running=True
+
+while running:
+    S = input('Enter your sentence: ')
+    print(f'Sentence S: \n{S}')
+    onex, twox ,threex, fourx = predict(S)
+    if onex > twox and onex > threex and onex > fourx:
+        classification = 'Class 1 (Least)'
+    elif twox > onex and twox > threex and twox > fourx:
+        classification = 'Class 2 (Lower Mid)'
+    elif threex > onex and threex > twox and threex > fourx:
+        classification = 'Class 3 (Upper Mid)'
+    elif fourx > onex and fourx > twox and fourx > threex:
+        classification = 'Class 4 (Most)'
+
+    print(f'Was classified as {classification}.')
+    print(f'P(Class 1 | S) = {np.e**onex}')
+    print(f'P(Class 2 | S) = {np.e**twox}')
+    print(f'P(Class 3 | S) = {np.e**threex}')
+    print(f'P(Class 4 | S) = {np.e**fourx}')
+
+    run = input('Do you want to continue? (Y/N): ')
+    if run != 'Y' and run != 'y':
+        running = False
+        break
 
 
-onex, twox ,threex, fourx = predict(S)
 
 
-if onex > twox and onex > threex and onex > fourx:
-    classification = 'Class 1 (Least)'
-elif twox > onex and twox > threex and twox > fourx:
-    classification = 'Class 2 (Lower Mid)'
-elif threex > onex and threex > twox and threex > fourx:
-    classification = 'Class 3 (Upper Mid)'
-elif fourx > onex and fourx > twox and fourx > threex:
-    classification = 'Class 4 (Most)'
 
-print(f'Was classified as {classification}.')
-print(f'P(Class 1 | S) = {np.e**onex}')
-print(f'P(Class 2 | S) = {np.e**twox}')
-print(f'P(Class 3 | S) = {np.e**threex}')
-print(f'P(Class 4 | S) = {np.e**fourx}')
+
+y_test_binarized=label_binarize(y_test,classes=np.unique(y_test))
+
+fpr = {}
+tpr = {}
+thresh ={}
+roc_auc = dict()
+
+n_class = y_test_binarized.shape[1]
+
+for i in range(n_class):
+    fpr[i], tpr[i], thresh[i] = roc_curve(y_test_binarized[:, i], predictions)
+    roc_auc[i] = auc(fpr[i], tpr[i])
+ 
+    plt.plot(fpr[i], tpr[i])
+
+
+plt.plot([0,1],[0,1],'b--')
+plt.xlim([0,1])
+plt.ylim([0,1.05])
+plt.title('Multiclass ROC curve')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive rate')
+plt.legend(labels)
+plt.show()
+
+
+labels = [4,3,2,1]
+
+cm = confusion_matrix(test_df['Points'], predictions)
+
+cmap = LinearSegmentedColormap.from_list('custom_cmap', ["#2D398B", "#C14169"])
+
+sns.set(font_scale=1.4)
+sns.heatmap(cm, annot=True, annot_kws={"size": 16}, cmap=cmap, fmt='d', xticklabels=labels, yticklabels=labels)
+
+
+fig = plt.gcf()
+fig.patch.set_facecolor('none')
+fig.patch.set_alpha(0.0)
+plt.xlabel('Predicted labels')
+plt.ylabel('True labels')
+plt.title('Confusion matrix')
+plt.show()
